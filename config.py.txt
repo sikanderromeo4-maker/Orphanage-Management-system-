@@ -1,0 +1,15 @@
+import os
+
+class Config:
+    SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-in-production")
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "DATABASE_URL", "mysql+pymysql://root:password@localhost/oms_db"
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # OAuth Credentials
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "YOUR_GOOGLE_CLIENT_SECRET")
+    
+    # Core Admin Setting
+    ADMIN_EMAIL = "sikanderromeo4@gmail.com"

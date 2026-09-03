@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Child Directory</h1>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3>Register New Intake</h3>
+    <form method="POST">
+        <input type="text" name="full_name" placeholder="Full Name" required>
+        <input type="date" name="date_of_birth" required>
+        <input type="text" name="residential_status" placeholder="Residential Status" required>
+        <input type="text" name="blood_group" placeholder="Blood Group" required>
+        <button type="submit" class="btn">Register</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Child ID</th>
+            <th>Full Name</th>
+            <th>Date of Birth</th>
+            <th>Residential Status</th>
+            <th>Blood Group</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for child in children %}
+        <tr>
+            <td>{{ child.child_id }}</td>
+            <td>{{ mask_pii(child.full_name) }}</td>
+            <td>{{ mask_pii(child.date_of_birth.strftime('%Y-%m-%d')) }}</td>
+            <td>{{ child.residential_status }}</td>
+            <td>{{ child.blood_group }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

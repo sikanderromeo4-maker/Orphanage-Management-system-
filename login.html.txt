@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 4rem auto; text-align: center;">
+    <h2>System Access</h2>
+    <p>Sign in using your authorized organizational credentials.</p>
+    <a href="{{ url_for('google_login') }}" class="btn" style="background: #4285F4;">Sign in with Google</a>
+</div>
+{% endblock %}

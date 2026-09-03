@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Inventory & Resource Tracker</h1>
+
+<div class="card" style="margin-bottom: 2rem;">
+    <h3>Add Inventory Item</h3>
+    <form method="POST">
+        <input type="text" name="category" placeholder="Category" required>
+        <input type="number" name="stock_quantity" placeholder="Stock Quantity" required>
+        <input type="number" name="reorder_threshold" placeholder="Reorder Threshold" required>
+        <button type="submit" class="btn">Add Item</button>
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Item ID</th>
+            <th>Category</th>
+            <th>Stock Quantity</th>
+            <th>Reorder Threshold</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.item_id }}</td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.stock_quantity }}</td>
+            <td>{{ item.reorder_threshold }}</td>
+            <td>
+                {% if item.stock_quantity <= item.reorder_threshold %}
+                    <span style="color: red; font-weight: bold;">LOW STOCK</span>
+                {% else %}
+                    <span style="color: green;">Optimal</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

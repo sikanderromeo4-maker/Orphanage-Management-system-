@@ -1,0 +1,157 @@
+import os
+from functools import wraps
+from flask import Flask, render_template, redirect, url_for, flash, request, abort
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from authlib.integrations.flask_client import OAuth
+from config import Config
+from models import (
+    db, Admin, Children, Staff, Donors, Donations, Inventory, 
+    Expenses, MedicalRecords, EducationRecords, Visitors, Adoptions
+)
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+db.init_app(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+# System-wide dynamic privacy toggle
+PRIVACY_MASKING_ENABLED = True
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=app.config["GOOGLE_CLIENT_ID"],
+    client_secret=app.config["GOOGLE_CLIENT_SECRET"],
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Admin.query.get(int(user_id))
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'Admin':
+            flash("Admin access required for this action.", "danger")
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.context_processor
+def inject_privacy_helper():
+    def mask_pii(value):
+        if PRIVACY_MASKING_ENABLED and (not current_user.is_authenticated or current_user.role != 'Admin'):
+            return "••••••••"
+        return value
+    return dict(mask_pii=mask_pii, masking_enabled=PRIVACY_MASKING_ENABLED)
+
+@app.route('/login')
+def login():
+    return render_template('login.html')
+
+@app.route('/login/google')
+def google_login():
+    redirect_uri = url_for('google_authorize', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/authorize')
+def google_authorize():
+    token = google.authorize_access_token()
+    user_info = token.get('userinfo')
+    if not user_info:
+        flash("Google authentication failed.", "danger")
+        return redirect(url_for('login'))
+    
+    email = user_info['email']
+    user = Admin.query.filter_by(email=email).first()
+    assigned_role = 'Admin' if email == app.config['ADMIN_EMAIL'] else 'Staff'
+    
+    if not user:
+        user = Admin(email=email, role=assigned_role)
+        db.session.add(user)
+    else:
+        user.role = assigned_role  # Enforce administrative designation dynamically
+        
+    db.session.commit()
+    login_user(user)
+    flash(f"Welcome back, {user.email}! Role: {user.role}", "success")
+    return redirect(url_for('dashboard'))
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash("Successfully logged out.", "info")
+    return redirect(url_for('login'))
+
+@app.route('/')
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    child_count = Children.query.filter_by(is_active=True).count()
+    donations = Donations.query.all()
+    total_donations = sum([float(d.amount_or_item) for d in donations if d.amount_or_item.replace('.', '', 1).isdigit()])
+    low_stock = Inventory.query.filter(Inventory.stock_quantity <= Inventory.reorder_threshold).all()
+    pending_adoptions = Adoptions.query.filter_by(verification_status='Pending').count()
+    
+    return render_template(
+        'dashboard.html', 
+        child_count=child_count, 
+        total_donations=total_donations, 
+        low_stock=low_stock, 
+        pending_adoptions=pending_adoptions
+    )
+
+@app.route('/children', methods=['GET', 'POST'])
+@login_required
+def children():
+    if request.method == 'POST':
+        child = Children(
+            full_name=request.form['full_name'],
+            date_of_birth=request.form['date_of_birth'],
+            residential_status=request.form['residential_status'],
+            blood_group=request.form['blood_group']
+        )
+        db.session.add(child)
+        db.session.commit()
+        flash("Child record created.", "success")
+        return redirect(url_for('children'))
+    
+    children_list = Children.query.all()
+    return render_template('children.html', children=children_list)
+
+@app.route('/inventory', methods=['GET', 'POST'])
+@login_required
+def inventory():
+    if request.method == 'POST':
+        item = Inventory(
+            category=request.form['category'],
+            stock_quantity=int(request.form['stock_quantity']),
+            reorder_threshold=int(request.form['reorder_threshold'])
+        )
+        db.session.add(item)
+        db.session.commit()
+        flash("Inventory item added.", "success")
+        return redirect(url_for('inventory'))
+    
+    items = Inventory.query.all()
+    return render_template('inventory.html', items=items)
+
+@app.route('/privacy-toggle', methods=['POST'])
+@login_required
+@admin_required
+def privacy_toggle():
+    global PRIVACY_MASKING_ENABLED
+    PRIVACY_MASKING_ENABLED = not PRIVACY_MASKING_ENABLED
+    state = "enabled" if PRIVACY_MASKING_ENABLED else "disabled"
+    flash(f"Global Data Scrubbing/Masking is now {state}.", "info")
+    return redirect(url_for('dashboard'))
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
